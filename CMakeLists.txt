@@ -14,6 +14,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_FLAGS " -g -ggdb")
 
 option(LEVELDB_BUILD_TESTS "Build LevelDB's unit tests" ON)
 option(LEVELDB_BUILD_BENCHMARKS "Build LevelDB's benchmarks" ON)
@@ -169,6 +170,13 @@ target_sources(leveldb
     "${PROJECT_SOURCE_DIR}/silkstore/silkstore_iter.cc"
     "${PROJECT_SOURCE_DIR}/silkstore/util.cpp"
 
+    "${PROJECT_SOURCE_DIR}/nvm/nvmemtable.h"
+    "${PROJECT_SOURCE_DIR}/nvm/nvmemtable.cc"
+    "${PROJECT_SOURCE_DIR}/nvm/nvmem.h"
+    "${PROJECT_SOURCE_DIR}/nvm/nvmem.cc"
+    "${PROJECT_SOURCE_DIR}/nvm/nvmmanager.h"
+    "${PROJECT_SOURCE_DIR}/nvm/nvmmanager.cc"
+
   # Only CMake 3.3+ supports PUBLIC sources in targets exported by "install".
   $<$<VERSION_GREATER:CMAKE_VERSION,3.2>:PUBLIC>
     "${LEVELDB_PUBLIC_INCLUDE_DIR}/c.h"
@@ -238,6 +246,13 @@ endif(HAVE_CLANG_THREAD_SAFETY)
 if(HAVE_CRC32C)
   target_link_libraries(leveldb crc32c)
 endif(HAVE_CRC32C)
+
+
+check_library_exists(pmem pmem_map_file "" HAVE_PMEM)
+if(HAVE_PMEM)
+  target_link_libraries(leveldb -lpmem)
+endif(HAVE_PMEM)
+
 if(HAVE_SNAPPY)
   target_link_libraries(leveldb snappy)
 endif(HAVE_SNAPPY)
@@ -298,6 +313,7 @@ if(LEVELDB_BUILD_TESTS)
   leveldb_test("${PROJECT_SOURCE_DIR}/util/no_destructor_test.cc")
 
   leveldb_test("${PROJECT_SOURCE_DIR}/silkstore/silkstore_test.cc")
+  leveldb_test("${PROJECT_SOURCE_DIR}/nvm/nvmemtable_test.cc")
 
   leveldb_test("${PROJECT_SOURCE_DIR}/silkstore/minirun_test.cc")
   leveldb_test("${PROJECT_SOURCE_DIR}/silkstore/util_test.cc")
