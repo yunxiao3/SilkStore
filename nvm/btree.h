@@ -368,7 +368,7 @@ struct BTree
        // printf("######### ~BTree ############ %ld\n", (size_t)this);        
        // std::cout<< "~BTree() A \n";
         destroy(root.load());
-       // std::cout<< "~BTree() B \n";
+      //  std::cout<< "~BTree() B \n";
     }
 
     void yield(int count)

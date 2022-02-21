@@ -262,6 +262,56 @@ void Delete_TEST(){
 }
 
 
+
+
+void Copy_TEST(){
+
+	leveldb::DynamicFilter *dynamic_filter =  leveldb::NewDynamicFilterBloom(1000, 0.1);
+	leveldb::InternalKeyComparator cmp(leveldb::BytewiseComparator());
+	size_t size = 10ul * GB;
+	leveldb::silkstore::NvmManager *manager 
+				= new leveldb::silkstore::NvmManager("/mnt/NVMSilkstore/nvmtable_test", size);
+	leveldb::silkstore::Nvmem *nvm = manager->allocate(2048ul*MB);
+	leveldb::NvmemTable *table = new leveldb::NvmemTable(cmp , dynamic_filter, nvm); // = new  silkstore::NvmemTable();
+	table->Ref();
+	std::map<std::string,std::string> m;		
+ 	Random rnd(0);
+	leveldb::SequenceNumber seq = 1;
+	leveldb::ValueType type = leveldb::kTypeValue;
+	int N = 500000;
+	for(int i = 0; i < N; i++){
+		std::string k = RandomNumberKey(&rnd);
+		leveldb::Slice key(k);
+		std::string v = std::to_string(i+200) + "12asda3";
+		m[k] = v;
+		leveldb::Slice value(v);
+		table->Add(seq, type, key, value);
+	}
+
+
+	leveldb::NvmemTable *imm_table = table;  
+	for(int i = 0; i < N; i++){
+		auto s_key = std::to_string(i);
+		leveldb::LookupKey lookupkey(leveldb::Slice(s_key), seq);
+		std::string res;
+		leveldb::Status status;
+		bool suc = imm_table->Get(lookupkey, &res, &status);
+		if (!suc && m.count(s_key)){
+			std::cout << "can't find key " << status.ToString() << "\n";
+			exit(-1);
+		}else{
+			if (res != m[s_key]){
+				std::cout << " find wrong value " << status.ToString() << "\n";
+				exit(-1);
+			}
+		}        
+	}
+
+    imm_table->Unref();
+	std::cout<< "  ## PASS Copy TEST ## \n";
+
+}
+
 void CompareMem_TEST(){
 
       leveldb::DynamicFilter *dynamic_filter =  leveldb::NewDynamicFilterBloom(1000, 0.1);
@@ -410,7 +460,8 @@ int main(int argc, char** argv){
 
      // leveldb::nvmemtable_test::ReadWrite_TEST();
 	// leveldb::nvmemtable_test::Iterator_TEST();
-	leveldb::nvmemtable_test::Delete_TEST();
+	// leveldb::nvmemtable_test::Delete_TEST();
+	leveldb::nvmemtable_test::Copy_TEST();
 	
 	  
      // leveldb::nvmemtable_test::WriteData();

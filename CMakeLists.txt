@@ -314,6 +314,7 @@ if(LEVELDB_BUILD_TESTS)
 
   leveldb_test("${PROJECT_SOURCE_DIR}/silkstore/silkstore_test.cc")
   leveldb_test("${PROJECT_SOURCE_DIR}/nvm/nvmemtable_test.cc")
+  leveldb_test("${PROJECT_SOURCE_DIR}/nvm/nvmsilkstore_test.cc")
 
   leveldb_test("${PROJECT_SOURCE_DIR}/silkstore/minirun_test.cc")
   leveldb_test("${PROJECT_SOURCE_DIR}/silkstore/util_test.cc")
@@ -382,6 +383,8 @@ if(LEVELDB_BUILD_BENCHMARKS)
 
   if(NOT BUILD_SHARED_LIBS)
     leveldb_benchmark("${PROJECT_SOURCE_DIR}/db/db_bench.cc")
+    leveldb_benchmark("${PROJECT_SOURCE_DIR}/nvm/nvm_db_bench.cc")
+
   endif(NOT BUILD_SHARED_LIBS)
 
   check_library_exists(sqlite3 sqlite3_open "" HAVE_SQLITE3)

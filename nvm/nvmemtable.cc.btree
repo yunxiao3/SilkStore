@@ -45,7 +45,7 @@ NvmemTable::~NvmemTable() {
     delete nvmem;
     nvmem = nullptr;
   } 
- // std::cout << "free memory: " << dram_usage_  / (1024*1024) << "MB \n";
+  std::cout << "free memory: " << dram_usage_  / (1024*1024) << "MB \n";
 }
 
 size_t NvmemTable::Searches() const { return searches_; }
@@ -69,30 +69,29 @@ static const char* EncodeKey(std::string* scratch, const Slice& target) {
   scratch->append(target.data(), target.size());
   return scratch->data();
 }
+
 class NvmemTableIterator: public Iterator {
  public:
   explicit NvmemTableIterator(NvmemTable::Index* index) : index(index) { 
-    iter_ = index->begin();
+    iter_ = index->begin_unsafe();
   }
-  virtual bool Valid() const { return iter_ != index->end() && iter_->second ; }
-  virtual void Seek(const Slice& k) { iter_ = index->find(k.ToString()); }
-  virtual void SeekToFirst() { iter_ = index->begin(); }
+  virtual bool Valid() const { return iter_.valid() ; }
+  virtual void Seek(const Slice& k) { 
+    std::cout<< "Seek : " << k.ToString() << " \n";
+    iter_ = index->seek(k.ToString()); }
+  virtual void SeekToFirst() { iter_ = index->begin_unsafe(); }
   virtual void SeekToLast() {  
-      fprintf(stderr, "MemTableIterator's SeekToLast() is not implemented !");  
-      assert(true);
+      std::__throw_runtime_error( "MemTableIterator's SeekToLast() is not implemented ! \n");
   }
   virtual void Next() {  ++iter_; }
-  virtual void Prev() { --iter_;
-    /* iter_.Prev(); */ 
-      fprintf(stderr, "MemTableIterator's Prev() is not implemented ! \n");  
-      sleep(111);
-      assert(true);
+  virtual void Prev() { 
+    std::__throw_runtime_error( "MemTableIterator's Prev() is not implemented ! \n");
   }
   virtual Slice key() const {  
-     return GetLengthPrefixedSlice((char *)(iter_->second)); 
+     return GetLengthPrefixedSlice((char *)(iter_.value())); 
   }
   virtual Slice value() const {
-    Slice key_slice = GetLengthPrefixedSlice((char *)(iter_->second));
+    Slice key_slice = GetLengthPrefixedSlice((char *)(iter_.value()));
     return GetLengthPrefixedSlice(key_slice.data() + key_slice.size());
   }
 
@@ -100,8 +99,7 @@ class NvmemTableIterator: public Iterator {
 
  private:
   NvmemTable::Index* index;
-  NvmemTable::Index::iterator iter_;
-
+  NvmemTable::Index::unsafe_iterator iter_;
   // No copying allowed
   NvmemTableIterator(const NvmemTableIterator&);
   void operator=(const NvmemTableIterator&);
@@ -109,6 +107,10 @@ class NvmemTableIterator: public Iterator {
 
 Iterator* NvmemTable::NewIterator() {
   return new NvmemTableIterator(&index_);
+}
+
+IndexIterator NvmemTable::NewIndexIterator() {
+  return index_.begin_unsafe();
 }
 
 Status NvmemTable::AddCounter(size_t added){
@@ -144,7 +146,7 @@ Status NvmemTable::AddBatch(const WriteBatch* batch){
 
 
 bool NvmemTable::AddIndex(Slice key ,uint64_t val){
-    index_[key.ToString()] = val;
+    index_.insert(key.ToString(),val);
     return true;
 }
 
@@ -213,7 +215,7 @@ void NvmemTable::Add(SequenceNumber s, ValueType type,
   assert(p + val_size == buf + encoded_len); 
 //  memcpy(buf + encoded_len, magicNum, 4);
   uint64_t address = nvmem->Insert(buf, encoded_len);
-  index_[key.ToString()] = address;
+  index_.insert(key.ToString(), address);
   dram_usage_ += key.size() + 16;
   if (dynamic_filter){
     dynamic_filter->Add(key);
@@ -231,7 +233,7 @@ bool NvmemTable::Get(const LookupKey& key, std::string* value, Status* s) {
   ++searches_;
   Slice memkey = key.user_key();
   uint64_t address = 0;
-  bool suc = index_.count(memkey.ToString());
+  bool suc = index_.lookup(memkey.ToString(), address);
 
   if (suc) {
    /*  Slice foundkey = NvmGetLengthPrefixedSlice((char *)(address));

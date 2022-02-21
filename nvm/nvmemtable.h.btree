@@ -8,8 +8,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#ifndef STORAGE_LEVELDB_DB_NVMEMTABLE_STL_H_
-#define STORAGE_LEVELDB_DB_NVMEMTABLE_STL_H_
+#ifndef STORAGE_LEVELDB_DB_NVMEMTABLE_H_
+#define STORAGE_LEVELDB_DB_NVMEMTABLE_H_
 
 
 #include <string>
@@ -100,7 +100,7 @@ class NvmemTable {
   friend class NvmemTableIterator;
   friend class NvmemTableBackwardIterator;
 
-  typedef std::map<std::string,uint64_t> Index;
+  typedef leveldb::silkstore::BTree<std::string,uint64_t> Index;
   KeyComparator comparator_;
   int refs_;
   Index index_;

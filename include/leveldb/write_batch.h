@@ -25,6 +25,8 @@
 #include "leveldb/export.h"
 #include "leveldb/status.h"
 
+#include "nvm/nvmemtable.h"
+
 namespace leveldb {
 
 class Slice;

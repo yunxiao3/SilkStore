@@ -37,6 +37,8 @@ Options::Options()
       compression(kSnappyCompression),
       reuse_logs(false),
       filter_policy(nullptr),
+      nvm_file("/mnt/NVMSilkstore/nvmem_table"),
+      nvm_size(1024ul * 1024ul * 1024ul * 50ul),      
       enable_leaf_read_opt(false),
       maximum_segments_storage_size(0),
       segments_storage_size_gc_threshold(0.9),

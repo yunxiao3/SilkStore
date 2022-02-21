@@ -14,7 +14,10 @@
 
 #include "db/dbformat.h"
 #include "db/log_writer.h"
-#include "db/memtable.h"
+//#include "db/memtable.h"
+#include "nvm/nvmemtable.h"
+#include "nvm/nvmmanager.h"
+
 #include "db/snapshot.h"
 #include "leveldb/db.h"
 #include "leveldb/env.h"
@@ -126,8 +129,9 @@ private:
     port::Mutex mutex_;
     port::AtomicPointer shutting_down_;
     port::CondVar background_work_finished_signal_ GUARDED_BY(mutex_);
-    MemTable *mem_;
-    MemTable *imm_ GUARDED_BY(mutex_);  // Memtable being compacted
+    NvmemTable *mem_;
+    NvmemTable *imm_ GUARDED_BY(mutex_);  // Memtable being compacted
+    silkstore::NvmManager *nvm_manager_;
 
     port::AtomicPointer has_imm_;       // So bg thread can detect non-null imm_
     WritableFile *logfile_;
@@ -201,6 +205,7 @@ private:
     Status Recover() EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
     Status RecoverLogFile(uint64_t log_number, SequenceNumber *max_sequence) EXCLUSIVE_LOCKS_REQUIRED(mutex_);;
+    Status RecoverNvmemtable(uint64_t log_number, SequenceNumber *max_sequence) EXCLUSIVE_LOCKS_REQUIRED(mutex_);;
 
     WriteBatch *BuildBatchGroup(Writer **last_writer)
     EXCLUSIVE_LOCKS_REQUIRED(mutex_);
