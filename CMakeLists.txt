@@ -177,6 +177,10 @@ target_sources(leveldb
     "${PROJECT_SOURCE_DIR}/nvm/nvmmanager.h"
     "${PROJECT_SOURCE_DIR}/nvm/nvmmanager.cc"
 
+
+    "${PROJECT_SOURCE_DIR}/nvm/nvm_leaf_index.h"
+    "${PROJECT_SOURCE_DIR}/nvm/nvm_leaf_index.cc"
+
   # Only CMake 3.3+ supports PUBLIC sources in targets exported by "install".
   $<$<VERSION_GREATER:CMAKE_VERSION,3.2>:PUBLIC>
     "${LEVELDB_PUBLIC_INCLUDE_DIR}/c.h"
@@ -304,6 +308,7 @@ if(LEVELDB_BUILD_TESTS)
 
   leveldb_test("${PROJECT_SOURCE_DIR}/db/c_test.c")
   leveldb_test("${PROJECT_SOURCE_DIR}/db/fault_injection_test.cc")
+  leveldb_test("${PROJECT_SOURCE_DIR}/nvm/nvm_leaf_index_test.cc")
 
   leveldb_test("${PROJECT_SOURCE_DIR}/issues/issue178_test.cc")
   leveldb_test("${PROJECT_SOURCE_DIR}/issues/issue200_test.cc")

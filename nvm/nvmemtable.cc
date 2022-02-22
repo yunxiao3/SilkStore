@@ -246,6 +246,7 @@ bool NvmemTable::Get(const LookupKey& key, std::string* value, Status* s) {
     // Check that it belongs to same user key.  We do not check the
     // sequence number since the Seek() call above should have skipped
     // all entries with overly large sequence numbers.
+    address =  index_[memkey.ToString()];
     uint32_t key_length;
     const char* key_ptr = GetVarint32Ptr((char *) (address), 
         (char *) (address + 5), &key_length);  // 

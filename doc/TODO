@@ -1,2 +1,2 @@
-1. Nvmemtable can't store kv's sequence number
+1. Nvmemtable can't store sequence number and big size kv data
 2. Silkstore's Iter has bugs that need to be fixed
