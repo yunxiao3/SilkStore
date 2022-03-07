@@ -177,9 +177,11 @@ target_sources(leveldb
     "${PROJECT_SOURCE_DIR}/nvm/nvmmanager.h"
     "${PROJECT_SOURCE_DIR}/nvm/nvmmanager.cc"
 
+    "${PROJECT_SOURCE_DIR}/nvm/leafindex/leafindex.h"
+    "${PROJECT_SOURCE_DIR}/nvm/leafindex/leafindex.cc"
 
-    "${PROJECT_SOURCE_DIR}/nvm/nvm_leaf_index.h"
-    "${PROJECT_SOURCE_DIR}/nvm/nvm_leaf_index.cc"
+    "${PROJECT_SOURCE_DIR}/nvm/nvm_leafindex.h"
+    "${PROJECT_SOURCE_DIR}/nvm/nvm_leafindex.cc"
 
   # Only CMake 3.3+ supports PUBLIC sources in targets exported by "install".
   $<$<VERSION_GREATER:CMAKE_VERSION,3.2>:PUBLIC>

@@ -101,7 +101,7 @@ SilkStore::SilkStore(const Options &raw_options, const std::string &dbname)
           leaf_optimization_func_([]() {}),
           manual_compaction_(nullptr) {
 
-    nvm_manager_ = new NvmManager(raw_options.nvm_file, raw_options.nvm_size);                             
+    nvm_manager_ = new NvmManager(raw_options.nvmemtable_file, raw_options.nvmemtable_size);                             
     has_imm_.Release_Store(nullptr);
 }
 
@@ -141,7 +141,7 @@ SilkStore::~SilkStore() {
 
 Status SilkStore::OpenIndex(const Options &index_options) {
     assert(leaf_index_ == nullptr);
-    Status s = DB::Open(index_options, dbname_ + "/leaf_index", &leaf_index_);
+    Status s =  NvmLeafIndex::OpenNvmLeafIndex(index_options, dbname_, &leaf_index_);
     return s;
 }
 
@@ -234,10 +234,7 @@ Status SilkStore::RecoverLogFile(uint64_t log_number, SequenceNumber *max_sequen
         }
 
     }
-
     delete file;
-
-
     // reuse the last log file
     assert(logfile_ == nullptr);
     assert(log_ == nullptr);
@@ -257,18 +254,12 @@ Status SilkStore::RecoverLogFile(uint64_t log_number, SequenceNumber *max_sequen
             mem_->Ref();
         }
     }
-
     if (mem != nullptr) {
         // mem did not get reused; delete it.
         mem->Unref();
     }
-
     return status;
 }
-
-
-
-
 
 Status SilkStore::RecoverNvmemtable(uint64_t log_number, SequenceNumber *max_sequence){
    // std::cout << "RecoverNvmemtable\n";
@@ -353,7 +344,6 @@ Status SilkStore::RecoverNvmemtable(uint64_t log_number, SequenceNumber *max_seq
     mem_ = new NvmemTable(internal_comparator_,
             nullptr, nvm_manager_->reallocate(records[len-1], records[len]) );
 
-
     SequenceNumber last_seq;
     mem_->Recovery(last_seq);
     mem_->Ref();
@@ -375,12 +365,10 @@ Status SilkStore::RecoverNvmemtable(uint64_t log_number, SequenceNumber *max_seq
           //  imm_.push_back(imm);
         }    
     }
-    std::cout <<"max_sequence " <<*max_sequence<< "\n";
+    //std::cout <<"max_sequence " <<*max_sequence<< "\n";
     delete file;
     return Status::OK();
 } 
-
-
 
 Status SilkStore::Recover() {
     MutexLock g(&mutex_);
@@ -472,13 +460,17 @@ Status SilkStore::TEST_CompactMemTable() {
 }
 
 // Convenience methods
-Status SilkStore::Put(const WriteOptions &o, const Slice &key, const Slice &val) {
+Status SilkStore::Put(const WriteOptions &options, const Slice &key, const Slice &value) {
     //fprintf(stderr, "put key: %s, seqnum: %u\n", key.ToString().c_str(), max_sequence_);
-    return DB::Put(o, key, val);
+    WriteBatch batch;
+    batch.Put(key, value);
+    return Write(options, &batch);
 }
 
 Status SilkStore::Delete(const WriteOptions &options, const Slice &key) {
-    return DB::Delete(options, key);
+    WriteBatch batch;
+    batch.Delete(key);
+    return Write(options, &batch);
 }
 
 static void SilkStoreNewIteratorCleanup(void *arg1, void *arg2) {
@@ -802,7 +794,6 @@ bool SilkStore::GetProperty(const Slice &property, std::string *value) {
         *value = std::to_string(stats_.bytes_written);
         return true;
     }
-
     return false;
 }
 
@@ -824,8 +815,6 @@ Status SilkStore::Get(const ReadOptions &options,
     NvmemTable *imm = imm_;
     mem->Ref();
     if (imm != nullptr) imm->Ref();
-
-
     // Unlock while reading from files and memtables
     {
         mutex_.Unlock();
@@ -902,7 +891,7 @@ WriteBatch *SilkStore::BuildBatchGroup(Writer **last_writer) {
 class GroupedSegmentAppender {
 public:
     GroupedSegmentAppender(int num_groups, SegmentManager *segment_manager, const Options &options,
-                           bool gc_on_segment_shortage = true) : builders(num_groups), segment_manager(segment_manager),
+                            bool gc_on_segment_shortage = true) : builders(num_groups), segment_manager(segment_manager),
                                                                  options(options),
                                                                  gc_on_segment_shortage(gc_on_segment_shortage) {}
 
@@ -1248,7 +1237,7 @@ std::string SilkStore::SegmentsSpaceUtilityHistogram() {
 
 int SilkStore::GarbageCollect() {
     MutexLock g(&GCMutex);
-
+    
     WriteBatch leaf_index_wb;
     // Simple policy: choose the segment with maximum number of invalidated runs
     constexpr int kGCSegmentCandidateNum = 5;
@@ -1287,6 +1276,7 @@ SilkStore::InvalidateLeafRuns(const LeafIndexEntry &leaf_index_entry, size_t sta
 }
 
 Status SilkStore::OptimizeLeaf() {
+    
     Log(options_.info_log, "Updating read hotness for all leaves.");
     stat_store_.UpdateReadHotness();
 
@@ -1305,8 +1295,8 @@ Status SilkStore::OptimizeLeaf() {
     };
     MutexLock g(&GCMutex);
 
-    auto leaf_index_snapshot = leaf_index_->GetSnapshot();
-    DeferCode c([this, &leaf_index_snapshot]() { leaf_index_->ReleaseSnapshot(leaf_index_snapshot); });
+    auto leaf_index_snapshot = nullptr;//leaf_index_->GetSnapshot();
+   // DeferCode c([this, &leaf_index_snapshot]() { leaf_index_->ReleaseSnapshot(leaf_index_snapshot); });
 
     // Maintain a min-heap of kOptimizationK elements based on read-hotness
     std::priority_queue<HeapItem> candidate_heap;
@@ -1404,12 +1394,12 @@ Status SilkStore::MakeRoomInLeafLayer(bool force) {
     restart:
     {
         ReadOptions ro;
-        ro.snapshot = leaf_index_->GetSnapshot();
+        ro.snapshot = nullptr; //leaf_index_->GetSnapshot();
         // Release snapshot after the traversal is done
-        DeferCode c([&ro, this]() {
+      /*   DeferCode c([&ro, this]() {
             leaf_index_->ReleaseSnapshot(ro.snapshot);
             mutex_.Lock();
-        });
+        }); */
 
         std::unique_ptr<Iterator> iit(leaf_index_->NewIterator(ro));
 
@@ -1609,13 +1599,13 @@ static int num_compactions = 0;
 Status SilkStore::DoCompactionWork(WriteBatch &leaf_index_wb) {
     mutex_.Unlock();
     ReadOptions ro;
-    ro.snapshot = leaf_index_->GetSnapshot();
+    ro.snapshot = nullptr; //leaf_index_->GetSnapshot();
 
     // Release snapshot after the traversal is done
-    DeferCode c([&ro, this]() {
+    /* DeferCode c([&ro, this]() {
         leaf_index_->ReleaseSnapshot(ro.snapshot);
         mutex_.Lock();
-    });
+    }); */
 
     std::unique_ptr<Iterator> iit(leaf_index_->NewIterator(ro));
     int self_compaction = 0;
@@ -1881,12 +1871,10 @@ void SilkStore::BackgroundCompaction() {
 }
 
 Status DestroyDB(const std::string &dbname, const Options &options) {
-    Status result = leveldb::DestroyDB(dbname + "/leaf_index", options);
-    if (result.ok() == false)
-        return result;
+
     Env *env = options.env;
     std::vector<std::string> filenames;
-    result = env->GetChildren(dbname, &filenames);
+    Status result = env->GetChildren(dbname, &filenames);
     if (!result.ok()) {
         // Ignore error in case directory does not exist
         return Status::OK();
@@ -1909,6 +1897,12 @@ Status DestroyDB(const std::string &dbname, const Options &options) {
         }
         env->UnlockFile(lock);  // Ignore error since state is already gone
         env->DeleteFile(lockname);
+        
+        //printf("destroy nvmemtable_file: %s \n", options.nvmemtable_file);
+        //env->DeleteFile(options.nvmemtable_file);
+        env->DeleteFile(dbname + "/leafindex_recovery");
+        env->DeleteFile(lockname);
+
         env->DeleteDir(dbname);  // Ignore error in case dir contains other files
     }
     return result;

@@ -201,10 +201,11 @@ struct LEVELDB_EXPORT Options {
   // Create an Options object with default values for all fields.
 
 
-  // Nvm map file
-  const char* nvm_file;
+  const char* nvmemtable_file;
+  const char* nvmleafindex_file;
   // nvm map size 
-  size_t nvm_size;
+  size_t nvmemtable_size;
+  size_t nvmleafindex_size;
   Options();
 };
 

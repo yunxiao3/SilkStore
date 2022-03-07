@@ -558,8 +558,7 @@ public:
         return files_renamed;
     }
 };
-
-/* 
+ 
 TEST(DBTest, IterMultiWithDelete) {
     do {
         ASSERT_OK(Put("a", "va"));
@@ -571,12 +570,32 @@ TEST(DBTest, IterMultiWithDelete) {
         Iterator* iter = db_->NewIterator(ReadOptions());
         iter->Seek("c");
         ASSERT_EQ(IterStatus(iter), "c->vc");
-        iter->Prev();
-        ASSERT_EQ(IterStatus(iter), "a->va");
+      //  iter->Prev();
+      //  ASSERT_EQ(IterStatus(iter), "a->va");
         delete iter;
     } while (ChangeOptions());
 }
- */
+
+
+TEST(DBTest, RepeatedWritesToSameKey) {
+    Options options = CurrentOptions();
+    options.env = env_;
+    options.write_buffer_size = 100000;  // Small write buffer
+    Reopen(&options);
+
+    // We must have at most one file per level except for level-0,
+    // which may have up to kL0_StopWritesTrigger files.
+    const int kMaxFiles = config::kNumLevels + config::kL0_StopWritesTrigger;
+
+    Random rnd(301);
+    std::string value = RandomString(&rnd, 2 * options.write_buffer_size);
+    for (int i = 0; i < 5 * kMaxFiles; i++) {
+        Put("key", value);
+        ASSERT_LE(TotalTableFiles(), kMaxFiles);
+        fprintf(stderr, "after %d: %d files\n", int(i+1), TotalTableFiles());
+    }
+}
+
 
 TEST(DBTest, RandomKeyTest) {
     static const int kNumOps = 3000000;
@@ -1164,25 +1183,6 @@ TEST(DBTest, RecoverWithLargeLog) {
 //    }
 //}
 
-TEST(DBTest, RepeatedWritesToSameKey) {
-    Options options = CurrentOptions();
-    options.env = env_;
-    options.write_buffer_size = 100000;  // Small write buffer
-    Reopen(&options);
-
-    // We must have at most one file per level except for level-0,
-    // which may have up to kL0_StopWritesTrigger files.
-    const int kMaxFiles = config::kNumLevels + config::kL0_StopWritesTrigger;
-
-    Random rnd(301);
-    std::string value = RandomString(&rnd, 2 * options.write_buffer_size);
-    for (int i = 0; i < 5 * kMaxFiles; i++) {
-        Put("key", value);
-        ASSERT_LE(TotalTableFiles(), kMaxFiles);
-        fprintf(stderr, "after %d: %d files\n", int(i+1), TotalTableFiles());
-    }
-}
-
 //TEST(DBTest, SparseMerge) {
 //    Options options = CurrentOptions();
 //    options.compression = kNoCompression;
@@ -1335,27 +1335,6 @@ static bool Between(uint64_t val, uint64_t low, uint64_t high) {
 //    } while (ChangeOptions());
 //}
 
-TEST(DBTest, IteratorPinsRef) {
-    Put("foo", "hello");
-
-    // Get iterator that will yield the current contents of the DB.
-    Iterator* iter = db_->NewIterator(ReadOptions());
-
-    // Write to force compactions
-    Put("foo", "newvalue1");
-    for (int i = 0; i < 100; i++) {
-        ASSERT_OK(Put(Key(i), Key(i) + std::string(1000, 'v'))); // 100K values
-    }
-    Put("foo", "newvalue2");
-
-    iter->SeekToFirst();
-    ASSERT_TRUE(iter->Valid());
-    ASSERT_EQ("foo", iter->key().ToString());
-    ASSERT_EQ("hello", iter->value().ToString());
-    iter->Next();
-    ASSERT_TRUE(!iter->Valid());
-    delete iter;
-}
 
 //TEST(DBTest, Snapshot) {
 //    do {
@@ -2077,6 +2056,29 @@ TEST(DBTest, MultiThreaded) {
     } while (ChangeOptions());
 }
 
+
+
+TEST(DBTest, IteratorPinsRef) {
+    Put("foo", "hello");
+
+    // Get iterator that will yield the current contents of the DB.
+    Iterator* iter = db_->NewIterator(ReadOptions());
+
+    // Write to force compactions
+    Put("foo", "newvalue1");
+    for (int i = 0; i < 100; i++) {
+        ASSERT_OK(Put(Key(i), Key(i) + std::string(1000, 'v'))); // 100K values
+    }
+    Put("foo", "newvalue2");
+
+    iter->SeekToFirst();
+    ASSERT_TRUE(iter->Valid());
+    ASSERT_EQ("foo", iter->key().ToString());
+    ASSERT_EQ("hello", iter->value().ToString());
+    iter->Next();
+    ASSERT_TRUE(!iter->Valid());
+    delete iter;
+}
 namespace {
 typedef std::map<std::string, std::string> KVMap;
 }

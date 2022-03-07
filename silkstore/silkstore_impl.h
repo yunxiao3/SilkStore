@@ -17,7 +17,7 @@
 //#include "db/memtable.h"
 #include "nvm/nvmemtable.h"
 #include "nvm/nvmmanager.h"
-#include "nvm/nvm_leaf_index.h"
+#include "nvm/nvm_leafindex.h"
 #include "db/snapshot.h"
 #include "leveldb/db.h"
 #include "leveldb/env.h"

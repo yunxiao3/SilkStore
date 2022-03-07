@@ -24,7 +24,7 @@
 #include <string>
 #include "leveldb/export.h"
 #include "leveldb/status.h"
-
+#include "nvm/leafindex/leafindex.h"
 #include "nvm/nvmemtable.h"
 
 namespace leveldb {

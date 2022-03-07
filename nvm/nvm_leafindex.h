@@ -11,7 +11,7 @@
 #include "leveldb/iterator.h"
 #include "leveldb/options.h"
 #include "nvm/nvmmanager.h"
-
+#include "nvm/leafindex/leafindex.h"
 #include "port/port.h"
 #include "port/thread_annotations.h"
 
@@ -128,7 +128,7 @@ public:
   virtual void CompactRange(const Slice* begin, const Slice* end) ;
 private:
   size_t cap_;
-  NvmemTable *nvm_table_;
+  LeafIndex *leaf_index_;
   port::Mutex mutex_;
 };
 

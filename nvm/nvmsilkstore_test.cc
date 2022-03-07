@@ -78,7 +78,7 @@ void SequentialWrite(){
         options.write_buffer_size = 64UL * 1024 * 1024;
         options.leaf_max_num_miniruns = 15;
         options.maximum_segments_storage_size = 90UL*1024*1024*1024;
-        options.nvm_size = 20UL*(1024*1024*1024);
+        //options.nvm_size = 20UL*(1024*1024*1024);
         leveldb::Status s = leveldb::DB::OpenSilkStore(options, "./silkdb", &db_);
         assert(s.ok()==true);
         std::cout << " ######### SequentialWrite Open DB ######## \n";
@@ -161,7 +161,7 @@ void Write(){
     options.write_buffer_size = 64UL * 1024 * 1024;
     options.leaf_max_num_miniruns = 15;
     options.maximum_segments_storage_size = 90UL*1024*1024*1024;
-    options.nvm_size = 20UL*(1024*1024*1024);
+    //options.nvm_size = 20UL*(1024*1024*1024);
     options.use_memtable_dynamic_filter = true;
     options.filter_policy = NewBloomFilterPolicy(10);
     options.maximum_segments_storage_size = kNumKVs * 116 * 2.0;
@@ -199,7 +199,7 @@ void RandomWrite(){
         options.write_buffer_size = 64UL * 1024 * 1024;
         options.leaf_max_num_miniruns = 15;
         options.maximum_segments_storage_size = 90UL*1024*1024*1024;
-        options.nvm_size = 20UL*(1024*1024*1024);
+        //options.nvm_size = 20UL*(1024*1024*1024);
         options.use_memtable_dynamic_filter = true;
         options.filter_policy = NewBloomFilterPolicy(10);
          options.maximum_segments_storage_size = kNumKVs * 116 * 2.0;
@@ -214,8 +214,7 @@ void RandomWrite(){
         for (int i = 0; i < kNumKVs; ++i) {
             keys[i] = RandomNumberKey(&rnd) ;
         }
-        std::cout << keys[3] << " \n";
-        
+                
         std::map<std::string, std::string> m;
         size_t countNum = 0;
         std::cout << " ######### Begin Random Insert And Get Test ######## \n";
@@ -334,7 +333,7 @@ void Iterator_Test(){
         options.write_buffer_size = 64UL * 1024 * 1024;
         options.leaf_max_num_miniruns = 15;
         options.maximum_segments_storage_size = 90UL*1024*1024*1024;
-        options.nvm_size = 20UL*(1024*1024*1024);
+       // options.nvm_size = 20UL*(1024*1024*1024);
         leveldb::Status s = leveldb::DB::OpenSilkStore(options, "./silkdb", &db_);
         assert(s.ok()==true);
         std::cout << " ######### SequentialWrite Open DB ######## \n";
@@ -407,7 +406,7 @@ void Iterator_Test(){
 int main(){
  //   Iterator_Test();
     //SequentialWrite();
-    Write();
-//    RandomWrite();
+    //Write();
+    RandomWrite();
     return 0;
 }

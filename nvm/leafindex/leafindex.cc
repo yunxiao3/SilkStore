@@ -6,7 +6,7 @@
 #include "leveldb/env.h"
 #include "leveldb/iterator.h"
 #include "util/coding.h"
-#include "nvm/nvmemtable.h"
+#include "nvm/leafindex/leafindex.h"
 #include "leveldb/write_batch.h"
 
 #include <iostream>
@@ -21,7 +21,7 @@ static Slice GetLengthPrefixedSlice(const char* data) {
   return Slice(p, len);
 }
 
-NvmemTable::NvmemTable(const InternalKeyComparator& cmp, DynamicFilter * dynamic_filter, 
+LeafIndex::LeafIndex(const InternalKeyComparator& cmp, DynamicFilter * dynamic_filter, 
     silkstore::Nvmem* nvmem)
     : comparator_(cmp),
       refs_(0),
@@ -34,7 +34,7 @@ NvmemTable::NvmemTable(const InternalKeyComparator& cmp, DynamicFilter * dynamic
       dram_usage_(0) {
       } 
 
-NvmemTable::~NvmemTable() {
+LeafIndex::~LeafIndex() {
   assert(refs_ == 0);
   if (dynamic_filter) {
     delete dynamic_filter;
@@ -48,11 +48,11 @@ NvmemTable::~NvmemTable() {
  // std::cout << "free memory: " << dram_usage_  / (1024*1024) << "MB \n";
 }
 
-size_t NvmemTable::Searches() const { return searches_; }
-size_t NvmemTable::NumEntries() const { return num_entries_; }
-size_t NvmemTable::ApproximateMemoryUsage() { return  memory_usage_; } //arena_.MemoryUsage(); }
+size_t LeafIndex::Searches() const { return searches_; }
+size_t LeafIndex::NumEntries() const { return num_entries_; }
+size_t LeafIndex::ApproximateMemoryUsage() { return  memory_usage_; } //arena_.MemoryUsage(); }
 
-int NvmemTable::KeyComparator::operator()(const char* aptr, const char* bptr)
+int LeafIndex::KeyComparator::operator()(const char* aptr, const char* bptr)
     const {
   // Internal keys are encoded as length-prefixed strings.
   Slice a = GetLengthPrefixedSlice(aptr);
@@ -69,17 +69,13 @@ static const char* EncodeKey(std::string* scratch, const Slice& target) {
   scratch->append(target.data(), target.size());
   return scratch->data();
 }
-class NvmemTableIterator: public Iterator {
+class LeafIndexIterator: public Iterator {
  public:
-  explicit NvmemTableIterator(NvmemTable::Index* index) : index(index) { 
+  explicit LeafIndexIterator(LeafIndex::Index* index) : index(index) { 
     iter_ = index->begin();
   }
   virtual bool Valid() const { return iter_ != index->end() && iter_->second ; }
-  // Seek 中的key 带有 8bits的序列号和标记位
-  virtual void Seek(const Slice& k) {
-      int k_len = k.size();  
-      iter_ = index->lower_bound( k.ToString().substr(0, k_len - 8) ); 
-  }
+  virtual void Seek(const Slice& k) { iter_ = index->lower_bound(k.ToString()); }
   virtual void SeekToFirst() { iter_ = index->begin(); }
   virtual void SeekToLast() {  
       fprintf(stderr, "MemTableIterator's SeekToLast() is not implemented !");  
@@ -103,32 +99,32 @@ class NvmemTableIterator: public Iterator {
   virtual Status status() const { return Status::OK(); }
 
  private:
-  NvmemTable::Index* index;
-  NvmemTable::Index::iterator iter_;
+  LeafIndex::Index* index;
+  LeafIndex::Index::iterator iter_;
 
   // No copying allowed
-  NvmemTableIterator(const NvmemTableIterator&);
-  void operator=(const NvmemTableIterator&);
+  LeafIndexIterator(const LeafIndexIterator&);
+  void operator=(const LeafIndexIterator&);
 };
 
-Iterator* NvmemTable::NewIterator() {
-  return new NvmemTableIterator(&index_);
+Iterator* LeafIndex::NewIterator() {
+  return new LeafIndexIterator(&index_);
 }
 
-Status NvmemTable::AddCounter(size_t added){
+Status LeafIndex::AddCounter(size_t added){
   counters_ += added;
   nvmem->UpdateCounter(counters_);
   return Status::OK();
 }
 
 
-size_t NvmemTable::GetCounter(){
+size_t LeafIndex::GetCounter(){
   return nvmem->GetCounter();
 }
 
 
 
-Status NvmemTable::AddBatch(const WriteBatch* batch){
+Status LeafIndex::AddBatch(const WriteBatch* batch){
   /* int64_t offset = nvmem->Insert(batch->buf, batch->offset_); 
   int nums = batch->offset_arr_.size();
 //  std::cout<< "batch size :" << batch->offset_arr_.size()<< "\n";
@@ -147,13 +143,13 @@ Status NvmemTable::AddBatch(const WriteBatch* batch){
 
 
 
-bool NvmemTable::AddIndex(Slice key ,uint64_t val){
+bool LeafIndex::AddIndex(Slice key ,uint64_t val){
     index_[key.ToString()] = val;
     return true;
 }
 
 
-Status NvmemTable::Recovery(SequenceNumber& max_sequence){
+Status LeafIndex::Recovery(SequenceNumber& max_sequence){
   // ToDo Get the right counters
   // Because updatecounter is not called in testcase, counters is set to 20
   int counters = nvmem->GetCounter();
@@ -191,7 +187,10 @@ Status NvmemTable::Recovery(SequenceNumber& max_sequence){
 }
 
 
-void NvmemTable::Add(SequenceNumber s, ValueType type,
+
+
+
+void LeafIndex::Add(SequenceNumber s, ValueType type,
                    const Slice& key,
                    const Slice& value) {
   // Format of an entry is concatenation of:
@@ -200,36 +199,62 @@ void NvmemTable::Add(SequenceNumber s, ValueType type,
   //  key bytes    : char[internal_key.size()]
   //  value_size   : varint32 of value.size()
   //  value bytes  : char[value.size()]
-  size_t key_size = key.size();
+  size_t magic_num = 0xFF12345678FF;
+
+  std::string magic = "12345678";
+
+  //Slice s;
+  std::string str = key.ToString();
+  std::string suffix;
+  size_t suffix_val = 0;
+  if (str.size() > 8){
+      suffix = str.substr(str.length()-8,str.length());
+      //std::cout<< "suffix :"<< suffix << "\n";
+     // suffix_val = bytesToInt_64(suffix.c_str());
+  }
+  std::string input_key;
+  if (suffix == magic){
+     //std::cout << "suffix == magic "<< str << " \n " ;
+     input_key = str.substr(0, str.length()-8);
+  }else{
+     //std::cout << "suffix_val != magic_num " << suffix_val<< " " << magic_num << " \n " ;    
+     input_key = key.ToString();
+  }
+  
+
+  //std::cout << "seq : " << s <<" input_key : " << input_key << " size: " << input_key.size() << "\n";
+  size_t key_size = input_key.size();
   size_t val_size = value.size();
   size_t internal_key_size = key_size + 8;
   const size_t encoded_len =
       VarintLength(internal_key_size) + internal_key_size +
       VarintLength(val_size) + val_size;
   char* p = EncodeVarint32(buf, internal_key_size);
-  memcpy(p, key.data(), key_size);
+  memcpy(p, input_key.data(), key_size);
   p += key_size;
- 
-  EncodeFixed64(p, (s << 8) | type);
+  //std::cout<<"SequenceNumber: " << s<<"\n";
+  memcpy(p, magic.c_str(), 8);
   p += 8;
   p = EncodeVarint32(p, val_size);
   memcpy(p, value.data(), val_size);
   assert(p + val_size == buf + encoded_len); 
 //  memcpy(buf + encoded_len, magicNum, 4);
   uint64_t address = nvmem->Insert(buf, encoded_len);
-  index_[key.ToString()] = address;
- // dram_usage_ += key.size() + 16;
-  if (dynamic_filter){
-    dynamic_filter->Add(key);
-  }
+
+  index_[input_key] = address;
+
+  if (dynamic_filter)
+    dynamic_filter->Add(input_key);
   ++num_entries_;
   // update memory_usage_ to recode nvm's usage size
   memory_usage_ += encoded_len;
+  
+  AddCounter(1);
 }
 
 
 
-bool NvmemTable::Get(const LookupKey& key, std::string* value, Status* s) {
+bool LeafIndex::Get(const LookupKey& key, std::string* value, Status* s) {
   if (dynamic_filter != nullptr && !dynamic_filter->KeyMayMatch(key.user_key()))
         return false;
   ++searches_;
